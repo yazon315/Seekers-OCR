@@ -32,6 +32,8 @@
       margin: 4px 2px;
       cursor: pointer;
     }
+    {% block content1 %}
+    {% endblock content1 %}
   </style>
 </head>
 <body>
@@ -40,6 +42,8 @@
   </div>
   <div class="button-container">
     <button class="buttonDownload" type="button">Скачать json</button>
+    {% block content2 %}
+    {% endblock content2 %}
   </div>
   <script>
     document.addEventListener('DOMContentLoaded', function() {
@@ -67,6 +71,8 @@
         downloadLink.download = 'data.json';
         downloadLink.click();
       });
+      {% block content3 %}
+      {% endblock content3 %}
     });
   </script>
 </body>
