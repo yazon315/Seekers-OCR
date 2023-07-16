@@ -4,6 +4,7 @@ from fastapi.templating import Jinja2Templates
 from funcs import crop_img, acc_img, create_html_content
 import os
 from fastapi.middleware.cors import CORSMiddleware
+import time
 
 IMAGE_DIR = "images"
 cropped_path = os.path.join(IMAGE_DIR, "cropped.png")
@@ -50,6 +51,10 @@ def process_cropped_img(request: Request):
 
 @app.get("/enhanced_result/{filename}", response_class=HTMLResponse)
 def enhanced_result(request: Request, filename: str):
-    return templates.TemplateResponse("enhanced_result.html", {"request": request,
-                                                               "content": create_html_content(acc_path,
-                                                                                              filename)})
+    try:
+        time.sleep(120)
+        content = create_html_content(acc_path, filename)
+    except:
+        content = create_html_content(cropped_path, filename)
+
+    return templates.TemplateResponse("enhanced_result.html", {"request": request, "content": content})
