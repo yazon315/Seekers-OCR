@@ -4,6 +4,7 @@ from PIL import Image
 import pandas as pd
 import app
 import pytesseract
+import subprocess
 import easyocr
 import re
 
@@ -39,12 +40,23 @@ def crop_img(file):
     cv2.imwrite(app.cropped_path, cropped_image)
 
 
-def img2table():
+def acc_img():
+    """
+    Увеличение точности изображения
+    """
+    command1 = f'python inference_realesrgan.py --model_path RealESRGAN_x4plus.pth --input {app.cropped_path} '
+    command2 = f'--output {app.IMAGE_DIR} --fp32'
+    full_command = command1 + command2
+    subprocess.run(full_command, shell=True)
+
+
+def img2table(img_path):
     """
     Распознание таблицы с изображения
+    :param img_path: путь до изображения
     """
     # Считывание изображения
-    img = Image.open(app.cropped_path)
+    img = Image.open(img_path)
     img = np.array(img)
     if img.ndim == 3 and img.shape[2] == 3:
         img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
@@ -125,6 +137,7 @@ def img2table():
     # Создание датафрейма
     try:
         df = pd.DataFrame(data=texts[1:], columns=texts[0])
+        df.dropna(inplace=True)
         df = df.applymap(lambda x: x.replace('\n', ''))
         df = df.rename(columns=lambda x: re.sub(r'\s+', ' ', x.replace('\n', ' ')))
     except:
@@ -165,13 +178,13 @@ def df2html_editable(df: pd.DataFrame, table_name: str):
     return html + js_code
 
 
-def create_html_content(filename: str):
+def create_html_content(img_path: str, filename: str):
     """
     Создание HTML
     :param filename: имя файла
     :return: HTML-содержимое
     """
-    df = img2table()
+    df = img2table(img_path)
     html_content = f"<h2>Таблица с изображения {filename}</h2>"
     html_content += df2html_editable(df, filename)
     return html_content
