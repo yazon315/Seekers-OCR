@@ -1,0 +1,34 @@
+{% extends 'result.html' %}
+
+{% block content1 %}
+    .buttonEnhance {
+      padding: 8px 16px;
+      text-align: center;
+      text-decoration: none;
+      display: inline-block;
+      font-size: 16px;
+      margin: 4px 2px;
+      cursor: pointer;
+    }
+{% endblock content1 %}
+
+{% block content2 %}
+    <button id="buttonEnhance" class="buttonEnhance" type="button">Улучшить распознание (работает медленнее)</button>
+{% endblock content2 %}
+
+{% block content3 %}
+    document.getElementById('buttonEnhance').onclick = function() {
+        fetch('/enhanced_result', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.text())
+        .then(html => {
+            document.getElementById('resultContainer').innerHTML = html;
+        })
+        .catch(error => console.error('Error:', error));
+        window.location.href = "/enhanced_result/cropped_out.png";
+    }
+{% endblock content3 %}
