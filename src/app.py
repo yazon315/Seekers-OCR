@@ -1,10 +1,12 @@
 from fastapi import FastAPI, Request, UploadFile, File, status
 from fastapi.responses import RedirectResponse, HTMLResponse
 from fastapi.templating import Jinja2Templates
-from funcs import remove_images, crop_img, acc_img, create_html_content
+import funcs
 import os
 from fastapi.middleware.cors import CORSMiddleware
 import time
+import uvicorn
+import argparse
 
 IMAGE_DIR = "images"
 cropped_path = os.path.join(IMAGE_DIR, "cropped.png")
@@ -36,16 +38,16 @@ def main(request: Request):
 
 @app.post("/result", response_class=HTMLResponse)
 def process_raw_img(request: Request, file: UploadFile = File(...)):
-    remove_images()
-    crop_img(file)
+    funcs.remove_images()
+    funcs.crop_img(file)
     return templates.TemplateResponse("cropped_result.html", {"request": request,
-                                                              "content": create_html_content(cropped_path,
-                                                                                             file.filename)})
+                                                              "content": funcs.create_html_content(cropped_path,
+                                                                                                   file.filename)})
 
 
 @app.post("/enhanced_result", response_class=HTMLResponse)
 def process_cropped_img(request: Request):
-    acc_img()
+    funcs.acc_img()
     redirect_url = request.url_for("enhanced_result", **{'filename': acc_filename})
     return RedirectResponse(redirect_url, status_code=status.HTTP_303_SEE_OTHER)
 
@@ -54,10 +56,19 @@ def process_cropped_img(request: Request):
 def enhanced_result(request: Request, filename: str):
     while True:
         try:
-            content = create_html_content(acc_path, filename)
+            content = funcs.create_html_content(acc_path, filename)
             break
 
         except:
             time.sleep(5)
 
     return templates.TemplateResponse("enhanced_result.html", {"request": request, "content": content})
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--port", default=8000, type=int, dest="port")
+    parser.add_argument("--host", default="0.0.0.0", type=str, dest="host")
+    args = vars(parser.parse_args())
+
+    uvicorn.run(app, **args)
