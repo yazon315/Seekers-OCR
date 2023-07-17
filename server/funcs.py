@@ -7,9 +7,19 @@ import pytesseract
 import subprocess
 import easyocr
 import re
+import os
+import shutil
 
 pytesseract.pytesseract.tesseract_cmd = 'C:/Program Files/Tesseract-OCR/tesseract.exe'
 reader = easyocr.Reader(['ru'])
+
+
+def remove_images():
+    """
+        Убирание прошлых изображений
+    """
+    shutil.rmtree(app.IMAGE_DIR)
+    os.makedirs(app.IMAGE_DIR)
 
 
 def crop_img(file):
