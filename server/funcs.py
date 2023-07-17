@@ -191,10 +191,14 @@ def df2html_editable(df: pd.DataFrame, table_name: str):
 def create_html_content(img_path: str, filename: str):
     """
     Создание HTML
+    :param img_path: путь до изобажения
     :param filename: имя файла
     :return: HTML-содержимое
     """
     df = img2table(img_path)
-    html_content = f"<h2>Таблица с изображения {filename}</h2>"
-    html_content += df2html_editable(df, filename)
+    if df.empty:
+        html_content = f"<h2>Не удалось распознать таблицу с изображения {filename}</h2>"
+    else:
+        html_content = f"<h2>Таблица с изображения {filename}</h2>"
+        html_content += df2html_editable(df, filename)
     return html_content
