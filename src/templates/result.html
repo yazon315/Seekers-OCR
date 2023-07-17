@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    table {
+      border-collapse: collapse;
+      width: 100%;
+    }
+
+    th, td {
+      border: 1px solid black;
+      padding: 8px;
+      text-align: left;
+    }
+
+    th {
+      background-color: #f2f2f2;
+    }
+
+    .button-container {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .buttonDownload {
+      padding: 8px 16px;
+      text-align: center;
+      text-decoration: none;
+      display: inline-block;
+      font-size: 16px;
+      margin: 4px 2px;
+      cursor: pointer;
+    }
+    {% block content1 %}
+    {% endblock content1 %}
+  </style>
+</head>
+<body>
+  <div>
+    {{ content|safe }}
+  </div>
+  <div class="button-container">
+    <button class="buttonDownload" type="button">Скачать json</button>
+    {% block content2 %}
+    {% endblock content2 %}
+  </div>
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      var buttonDownload = document.querySelector('.buttonDownload');
+      buttonDownload.addEventListener('click', function() {
+        // Считывание фрейма данных со страницы
+        var table = document.querySelector('table');
+        var rows = table.querySelectorAll('tr');
+        var data = [];
+        for (var i = 0; i < rows.length; i++) {
+          var cells = rows[i].querySelectorAll('td');
+          var rowData = [];
+          for (var j = 0; j < cells.length; j++) {
+            rowData.push(cells[j].innerText);
+          }
+          data.push(rowData);
+        }
+
+        // Преобразование фрейма данных в JSON
+        var json = JSON.stringify(data);
+
+        // При необходимости загрузка файла JSON
+        var downloadLink = document.createElement('a');
+        downloadLink.href = 'data:application/json;charset=utf-8,' + encodeURIComponent(json);
+        downloadLink.download = 'data.json';
+        downloadLink.click();
+      });
+      {% block content3 %}
+      {% endblock content3 %}
+    });
+  </script>
+</body>
+</html>
