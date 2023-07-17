@@ -9,6 +9,8 @@ import easyocr
 import re
 import os
 import shutil
+import dateparser
+import datetime
 
 pytesseract.pytesseract.tesseract_cmd = 'C:/Program Files/Tesseract-OCR/tesseract.exe'
 reader = easyocr.Reader(['ru'])
@@ -134,25 +136,39 @@ def img2table(img_path):
             # Добавление текста в список
             texts.append(text.replace('|', '').replace('_', '').replace(',', '.'))
 
-    # Исключение пустых строк вначале списка
-    for text in texts[num_vertical_lines:]:
-        if text == '':
-            texts.remove(text)
-        else:
+    for i in range(len(texts)):
+        if type(dateparser.parse(texts[i])) == datetime.datetime:
+            texts = texts[i:]
             break
 
-    # Разделение списка по колучиству столбцов
-    texts = [texts[i:i + num_vertical_lines] for i in range(0, len(texts), num_vertical_lines)]
+    dates = []
+    kinds = []
+    types = []
+    quantities = []
 
-    # Создание датафрейма
-    try:
-        df = pd.DataFrame(data=texts[1:], columns=texts[0])
-        df.dropna(inplace=True)
-        df = df.applymap(lambda x: x.replace('\n', ''))
-        df = df.rename(columns=lambda x: re.sub(r'\s+', ' ', x.replace('\n', ' ')))
-    except:
-        df = pd.DataFrame()
+    for i in range(0, len(texts), 3):
+        date = dateparser.parse(texts[i])
+        if date is not None:
+            dates.append(date.strftime('%d.%m.%Y'))
+        else:
+            dates.append('')
+
+        kinds.append(re.sub(r'[^а-яА-Яa-zA-Z]', '', texts[i + 1][:4]))
+        types.append(re.sub(r'[^а-яА-Яa-zA-Z]', '', texts[i + 1][4:]))
+        quantities.append(re.sub(r"\D", "", texts[i + 2]))
+
+    df = pd.DataFrame()
+
+    df['Дата'] = dates
+    df['Тип донации'] = kinds
+    df['Вид донации'] = types
+    df['Кол-во'] = quantities
+
+    df['Тип донации'].replace({'крд': 'Цельная кровь', 'плд': 'Плазма', 'цд': 'Тромбоциты'}, inplace=True)
+    df['Вид донации'].replace({'бв': 'Безвозмездно', 'плат': 'Платно'}, inplace=True)
+
     return df
+
 
 
 def df2html_editable(df: pd.DataFrame, table_name: str):
@@ -202,3 +218,4 @@ def create_html_content(img_path: str, filename: str):
         html_content = f"<h2>Таблица с изображения {filename}</h2>"
         html_content += df2html_editable(df, filename)
     return html_content
+
