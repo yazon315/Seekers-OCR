@@ -46,7 +46,17 @@ function handleFileSelect(evt) {
     var form = document.getElementById('uploadImage');
     form.action = form.action + '?file='
 
+    // Показать кнопку
     document.getElementById('button').style.display = 'block';
+}
+document.getElementById('button').addEventListener('click', handleButtonClick, false);
+
+function handleButtonClick(evt) {
+    // Спрятать кнопку
+    document.getElementById('button').style.display = 'none';
+
+    // Показать индикатор загрузки
+    document.getElementById('uploadedImages').innerHTML = '<div class="loader"></div>';
 }
 </script>
 {% endblock content %}
