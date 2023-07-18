@@ -117,15 +117,6 @@ def img2table(img_path):
     contours = list(contours)
     contours.reverse()
 
-    # Подсчёт вертикальных линий (столбцов)
-    num_vertical_lines = 1
-    for contour in contours:
-        x, y, w, h = cv2.boundingRect(contour)
-
-        if 0.04 < w / img.shape[1] < 0.35 and 0.04 < h / img.shape[0] < 0.35:
-            num_vertical_lines = int(img.shape[1] / w)
-            break
-
     texts = []
     # Итерация по каждому контуру (ячейке)
     for contour in contours:
