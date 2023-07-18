@@ -2,6 +2,8 @@ import argparse
 import cv2
 import glob
 import os
+import numpy as np
+from PIL import Image
 from basicsr.archs.rrdbnet_arch import RRDBNet
 from basicsr.utils.download_util import load_file_from_url
 
@@ -135,7 +137,8 @@ def main():
         imgname, extension = os.path.splitext(os.path.basename(path))
         print('Testing', idx, imgname)
 
-        img = cv2.imread(path, cv2.IMREAD_UNCHANGED)
+        img = Image.open(path)
+        img = np.array(img)
         if len(img.shape) == 3 and img.shape[2] == 4:
             img_mode = 'RGBA'
         else:
