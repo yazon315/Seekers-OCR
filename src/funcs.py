@@ -41,8 +41,17 @@ def crop_img(file):
     # Обнаружение контуров
     contours, _ = cv2.findContours(img_bin, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
-    # Определение самого большого контура
-    largest_contour = max(contours, key=cv2.contourArea)
+    try:
+        new_contours = []
+        for contour in contours:
+            _, _, w, h = cv2.boundingRect(contour)
+            if 0.6 < w / img.shape[1] < 1 and 0 < h / img.shape[0] < 0.4:
+                new_contours.append(contour)
+
+        # Определение самого большого контура
+        largest_contour = max(new_contours, key=cv2.contourArea)
+    except:
+        largest_contour = max(contours, key=cv2.contourArea)
 
     # Обрезание по этому контуру
     x, y, w, h = cv2.boundingRect(largest_contour)
@@ -67,6 +76,7 @@ def img2table(img_path):
     Распознание таблицы с изображения
     :param img_path: путь до изображения
     """
+    print(img_path)
     # Считывание изображения
     img = Image.open(img_path)
     img = np.array(img)
@@ -112,7 +122,7 @@ def img2table(img_path):
     for contour in contours:
         x, y, w, h = cv2.boundingRect(contour)
 
-        if 20 < w < 500 and 20 < h < 500:
+        if 0.04 < w / img.shape[1] < 0.35 and 0.04 < h / img.shape[0] < 0.35:
             num_vertical_lines = int(img.shape[1] / w)
             break
 
@@ -122,7 +132,7 @@ def img2table(img_path):
 
         # Получение координат ограничивающего прямоугольника вокруг контура
         x, y, w, h = cv2.boundingRect(contour)
-        if 20 < w < 500 and 20 < h < 500:
+        if 0.04 < w / img.shape[1] < 0.35 and 0.04 < h / img.shape[0] < 0.35:
             cell_image = img[y:y + h, x:x + w]
 
             # Получение текста с ячейки
@@ -134,41 +144,46 @@ def img2table(img_path):
                     text = results[0][1]
 
             # Добавление текста в список
-            texts.append(text.replace('|', '').replace('_', '').replace(',', '.'))
-
-    for i in range(len(texts)):
-        if type(dateparser.parse(texts[i])) == datetime.datetime:
-            texts = texts[i:]
-            break
-
+            texts.append(text.replace('|', '').replace('_', '').replace(',', '.').replace('—', ''))
     dates = []
+    date_ids = []
+    for i in range(len(texts)):
+        date = dateparser.parse(texts[i])
+        if type(date) == datetime.datetime and i != len(texts) - 1:
+            dates.append(date.strftime('%d.%m.%Y'))
+            date_ids.append(i)
+
     kinds = []
     types = []
     quantities = []
-
-    for i in range(0, len(texts), 3):
-        date = dateparser.parse(texts[i])
-        if date is not None:
-            dates.append(date.strftime('%d.%m.%Y'))
-        else:
-            dates.append('')
-
-        kinds.append(re.sub(r'[^а-яА-Яa-zA-Z]', '', texts[i + 1][:4]))
-        types.append(re.sub(r'[^а-яА-Яa-zA-Z]', '', texts[i + 1][4:]))
-        quantities.append(re.sub(r"\D", "", texts[i + 2]))
-
     df = pd.DataFrame()
 
-    df['Дата'] = dates
-    df['Тип донации'] = kinds
-    df['Вид донации'] = types
-    df['Кол-во'] = quantities
+    if date_ids:
+        for i in date_ids:
+            if texts[i + 1] != '':
+                kinds.append(re.sub(r'[^а-яА-Яa-zA-Z]', '', texts[i + 1][:4]))
+            else:
+                kinds.append('')
 
-    df['Тип донации'].replace({'крд': 'Цельная кровь', 'плд': 'Плазма', 'цд': 'Тромбоциты'}, inplace=True)
-    df['Вид донации'].replace({'бв': 'Безвозмездно', 'плат': 'Платно'}, inplace=True)
+            if len(texts[i + 1]) > 4:
+                types.append(re.sub(r'[^а-яА-Яa-zA-Z]', '', texts[i + 1][4:]))
+            else:
+                types.append('')
+
+            if texts[i + 2] != '':
+                quantities.append(re.sub(r"\D", "", texts[i + 2]))
+            else:
+                quantities.append('')
+
+        df['Дата'] = dates
+        df['Тип донации'] = kinds
+        df['Вид донации'] = types
+        df['Кол-во'] = quantities
+
+        df['Тип донации'].replace({'крд': 'Цельная кровь', 'плд': 'Плазма', 'цд': 'Тромбоциты'}, inplace=True)
+        df['Вид донации'].replace({'бв': 'Безвозмездно', 'плат': 'Платно'}, inplace=True)
 
     return df
-
 
 
 def df2html_editable(df: pd.DataFrame, table_name: str):
