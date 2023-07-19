@@ -1,4 +1,5 @@
 basicsr==1.4.2
+dateparser~=1.1.8
 easyocr==1.7.0
 fastapi==0.100.0
 numpy==1.24.4
@@ -9,3 +10,4 @@ Pillow==10.0.0
 pytesseract==0.3.10
 realesrgan==0.3.0
 uvicorn~=0.22.0
+ultralyticsplus~=0.0.28
