@@ -11,9 +11,18 @@ import os
 import shutil
 import dateparser
 import datetime
+from ultralyticsplus import YOLO
+
 
 pytesseract.pytesseract.tesseract_cmd = 'C:/Program Files/Tesseract-OCR/tesseract.exe'
 reader = easyocr.Reader(['ru'])
+
+model = YOLO('keremberke/yolov8m-table-extraction')
+
+model.overrides['conf'] = 0.25  # NMS confidence threshold
+model.overrides['iou'] = 0.45  # NMS IoU threshold
+model.overrides['agnostic_nms'] = False  # NMS class-agnostic
+model.overrides['max_det'] = 1000  # maximum number of detections per image
 
 
 def remove_images():
@@ -31,31 +40,45 @@ def crop_img(file):
     """
     # Считывание изображения
     img = Image.open(file.file)
-    img = np.array(img)
-    if img.ndim == 3 and img.shape[2] == 3:
-        img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-
-    # Присвоение изображению порогового значения в виде двоичного изображения
-    img_bin = cv2.adaptiveThreshold(img, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY_INV, 21, 10)
-
-    # Обнаружение контуров
-    contours, _ = cv2.findContours(img_bin, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    array = np.array(img)
+    if array.ndim == 3 and array.shape[2] == 3:
+        array = cv2.cvtColor(array, cv2.COLOR_BGR2GRAY)
 
     try:
-        new_contours = []
-        for contour in contours:
-            _, _, w, h = cv2.boundingRect(contour)
-            if 0.6 < w / img.shape[1] < 1 and 0 < h / img.shape[0] < 0.4:
-                new_contours.append(contour)
+        results = model.predict(img)
 
-        # Определение самого большого контура
-        largest_contour = max(new_contours, key=cv2.contourArea)
+        for result in results:
+            if result.boxes:
+                bbox = result.boxes.xyxy[0].tolist()
+                x_min, y_min, x_max, y_max = bbox
+                reserve = int(img.shape[0] / img.shape[1] * (x_max / x_min))
+                reserve2 = int(img.shape[0] / img.shape[1] * (y_max / x_min))
+                cropped_image = img.crop((int(x_min) - reserve,
+                                          int(y_min) - reserve,
+                                          int(x_max) + reserve + reserve2,
+                                          int(y_max) + reserve + reserve2))
     except:
-        largest_contour = max(contours, key=cv2.contourArea)
+        # Присвоение изображению порогового значения в виде двоичного изображения
+        img_bin = cv2.adaptiveThreshold(array, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY_INV, 21, 10)
 
-    # Обрезание по этому контуру
-    x, y, w, h = cv2.boundingRect(largest_contour)
-    cropped_image = img[y:y + h, x:x + w]
+        # Обнаружение контуров
+        contours, _ = cv2.findContours(img_bin, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+        try:
+            new_contours = []
+            for contour in contours:
+                _, _, w, h = cv2.boundingRect(contour)
+                if 0.6 < w / array.shape[1] < 1 and 0 < h / array.shape[0] < 0.4:
+                    new_contours.append(contour)
+
+            # Определение самого большого контура
+            largest_contour = max(new_contours, key=cv2.contourArea)
+        except:
+            largest_contour = max(contours, key=cv2.contourArea)
+
+        # Обрезание по этому контуру
+        x, y, w, h = cv2.boundingRect(largest_contour)
+        cropped_image = array[y:y + h, x:x + w]
 
     # Сохранение
     cv2.imwrite(app.cropped_path, cropped_image)
@@ -76,7 +99,6 @@ def img2table(img_path):
     Распознание таблицы с изображения
     :param img_path: путь до изображения
     """
-    print(img_path)
     # Считывание изображения
     img = Image.open(img_path)
     img = np.array(img)
@@ -140,14 +162,14 @@ def img2table(img_path):
     date_ids = []
     for i in range(len(texts)):
         date = dateparser.parse(texts[i])
-        if type(date) == datetime.datetime and i != len(texts) - 1:
+        if type(date) == datetime.datetime and i < len(texts) - 2:
             dates.append(date.strftime('%d.%m.%Y'))
             date_ids.append(i)
 
     kinds = []
     types = []
     quantities = []
-    df = pd.DataFrame()
+    df = pd.DataFrame(columns=['Дата донации', 'Класс крови', 'Тип донации', 'Количество'])
 
     if date_ids:
         for i in date_ids:
@@ -166,13 +188,13 @@ def img2table(img_path):
             else:
                 quantities.append('')
 
-        df['Дата'] = dates
-        df['Тип донации'] = kinds
-        df['Вид донации'] = types
-        df['Кол-во'] = quantities
+        df['Дата донации'] = dates
+        df['Класс крови'] = kinds
+        df['Тип донации'] = types
+        df['Количество'] = quantities
 
-        df['Тип донации'].replace({'крд': 'Цельная кровь', 'плд': 'Плазма', 'цд': 'Тромбоциты'}, inplace=True)
-        df['Вид донации'].replace({'бв': 'Безвозмездно', 'плат': 'Платно'}, inplace=True)
+        df['Класс крови'].replace({'крд': 'Цельная кровь', 'плд': 'Плазма', 'цд': 'Тромбоциты'}, inplace=True)
+        df['Тип донации'].replace({'бв': 'Безвозмездно', 'плат': 'Платно'}, inplace=True)
 
     return df
 
