@@ -12,7 +12,7 @@ import shutil
 import dateparser
 import datetime
 from ultralyticsplus import YOLO
-
+import imutils
 
 pytesseract.pytesseract.tesseract_cmd = 'C:/Program Files/Tesseract-OCR/tesseract.exe'
 reader = easyocr.Reader(['ru'])
@@ -99,14 +99,103 @@ def img2table(img_path):
     Распознание таблицы с изображения
     :param img_path: путь до изображения
     """
+
+    def sort_contours_yx(cnts, y_thresh=5):
+        # Создание списка ограничивающих прямоугольников для каждого контура
+        boxes = [cv2.boundingRect(c) for c in cnts]
+
+        # Сортирука контуров по оси y
+        sorted_boxes = sorted(boxes, key=lambda b: b[1])
+
+        sorted_cnts = [x for _, x in sorted(zip(boxes, cnts), key=lambda pair: pair[0][1])]
+
+        # Инициализация первого значения y и списка для сортировки по x
+        last_y = sorted_boxes[0][1]
+        current_group = []
+        final_cnts = []
+
+        for (x, y, w, h), c in zip(sorted_boxes, sorted_cnts):
+            if abs(y - last_y) > y_thresh:  # Проверка разницы с предыдущим y
+                # Сортировка текущей группы по x и сохранение результатов
+                current_group.sort(key=lambda b: b[0])
+                # Добавление отсортированной группы в финальный список
+                final_cnts += current_group
+                current_group = []
+            current_group.append(((x, y, w, h), c))
+            last_y = y
+
+        # Не забываем про последнюю группу
+        if current_group:
+            current_group.sort(key=lambda b: b[0][0])
+            final_cnts += current_group
+
+        # Разделение контуров и боксов обратно в два списка
+        final_boxes, final_cnts = zip(*final_cnts)
+
+        return final_cnts, final_boxes
+
     # Считывание изображения
     img = Image.open(img_path)
     img = np.array(img)
+    cv2_image = imutils.resize(img, height=500)
+
     if img.ndim == 3 and img.shape[2] == 3:
         img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
+    edged = cv2.Canny(img, 75, 200)
+
+    contours = cv2.findContours(edged.copy(), cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+    grabbed = imutils.grab_contours(contours)
+    sortedContours = sorted(grabbed, key=cv2.contourArea, reverse=True)[:5]
+
+    screenCnt = None
+    for contour in sortedContours:
+        peri = cv2.arcLength(contour, True)
+        approximation = cv2.approxPolyDP(contour, 0.02 * peri, True)
+
+        if len(approximation) == 4:
+            screenCnt = approximation
+            break
+
     # Присвоение изображению порогового значения в виде двоичного изображения
     img_bin = cv2.adaptiveThreshold(img, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY_INV, 21, 10)
+
+    try:
+        ratio = cv2_image.shape[0] / 500.0
+        pts = screenCnt.reshape(4, 2) * ratio
+
+        rect = np.zeros((4, 2), dtype="float32")
+
+        s = pts.sum(axis=1)
+        rect[0] = pts[np.argmin(s)]
+        rect[2] = pts[np.argmax(s)]
+
+        diff = np.diff(pts, axis=1)
+        rect[1] = pts[np.argmin(diff)]
+        rect[3] = pts[np.argmax(diff)]
+
+        (tl, tr, br, bl) = rect
+
+        widthA = np.sqrt(((br[0] - bl[0]) ** 2) + ((br[1] - bl[1]) ** 2))
+        widthB = np.sqrt(((tr[0] - tl[0]) ** 2) + ((tr[1] - tl[1]) ** 2))
+        maxWidth = max(int(widthA), int(widthB))
+
+        heightA = np.sqrt(((tr[0] - br[0]) ** 2) + ((tr[1] - br[1]) ** 2))
+        heightB = np.sqrt(((tl[0] - bl[0]) ** 2) + ((tl[1] - bl[1]) ** 2))
+        maxHeight = max(int(heightA), int(heightB))
+
+        dst = np.array([
+            [0, 0],
+            [maxWidth - 1, 0],
+            [maxWidth - 1, maxHeight - 1],
+            [0, maxHeight - 1]], dtype="float32")
+
+        M = cv2.getPerspectiveTransform(rect, dst)
+        raw_transformed = cv2.warpPerspective(img, M, (maxWidth, maxHeight))
+        bin_transformed = cv2.warpPerspective(img_bin, M, (maxWidth, maxHeight))
+    except:
+        raw_transformed = img
+        bin_transformed = img_bin
 
     # Ширина ядра как 100-я часть общей ширины
     kernel_len = np.array(img).shape[1] // 100
@@ -119,10 +208,10 @@ def img2table(img_path):
     kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (2, 2))
 
     # Обнаружение вертикальных и горизонтальных линий
-    image_1 = cv2.erode(img_bin, ver_kernel, iterations=3)
+    image_1 = cv2.erode(bin_transformed, ver_kernel, iterations=3)
     vertical_lines = cv2.dilate(image_1, ver_kernel, iterations=3)
 
-    image_2 = cv2.erode(img_bin, hor_kernel, iterations=3)
+    image_2 = cv2.erode(bin_transformed, hor_kernel, iterations=3)
     horizontal_lines = cv2.dilate(image_2, hor_kernel, iterations=3)
 
     # Объединение горизонтальных и вертикальных линий в новом изображении
@@ -138,6 +227,7 @@ def img2table(img_path):
     # Преобразование tuple в list
     contours = list(contours)
     contours.reverse()
+    contours, _ = sort_contours_yx(contours, 5)
 
     texts = []
     # Итерация по каждому контуру (ячейке)
@@ -145,8 +235,8 @@ def img2table(img_path):
 
         # Получение координат ограничивающего прямоугольника вокруг контура
         x, y, w, h = cv2.boundingRect(contour)
-        if 0.04 < w / img.shape[1] < 0.35 and 0.04 < h / img.shape[0] < 0.35:
-            cell_image = img[y:y + h, x:x + w]
+        if 0.04 < w / raw_transformed.shape[1] < 0.35 and 0.04 < h / raw_transformed.shape[0] < 0.35:
+            cell_image = raw_transformed[y:y + h, x:x + w]
 
             # Получение текста с ячейки
             text = pytesseract.image_to_string(cell_image, lang='rus')
@@ -161,8 +251,10 @@ def img2table(img_path):
     dates = []
     date_ids = []
     for i in range(len(texts)):
-        date = dateparser.parse(texts[i])
-        if type(date) == datetime.datetime and i < len(texts) - 2:
+        date = dateparser.parse(texts[i], languages=['ru'], date_formats=['%d/%m/%Y'],
+                                settings={'REQUIRE_PARTS': ['day', 'month', 'year']})
+        if type(date) == datetime.datetime and datetime.datetime(2000, 1, 1) < date <= datetime.datetime.now() \
+                and i != len(texts) - 1 and i != len(texts) - 2:
             dates.append(date.strftime('%d.%m.%Y'))
             date_ids.append(i)
 
@@ -246,4 +338,3 @@ def create_html_content(img_path: str, filename: str):
         html_content = f"<h2>Таблица с изображения {filename}</h2>"
         html_content += df2html_editable(df, filename)
     return html_content
-
