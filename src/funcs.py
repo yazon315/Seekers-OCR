@@ -41,23 +41,24 @@ def crop_img(file):
     # Считывание изображения
     img = Image.open(file.file)
     array = np.array(img)
-    if array.ndim == 3 and array.shape[2] == 3:
-        array = cv2.cvtColor(array, cv2.COLOR_BGR2GRAY)
 
     try:
         results = model.predict(img)
 
         for result in results:
-            if result.boxes:
-                bbox = result.boxes.xyxy[0].tolist()
-                x_min, y_min, x_max, y_max = bbox
-                reserve = int(img.shape[0] / img.shape[1] * (x_max / x_min))
-                reserve2 = int(img.shape[0] / img.shape[1] * (y_max / x_min))
-                cropped_image = img.crop((int(x_min) - reserve,
-                                          int(y_min) - reserve,
-                                          int(x_max) + reserve + reserve2,
-                                          int(y_max) + reserve + reserve2))
+            bbox = result.boxes.xyxy[0].tolist()
+            x_min, y_min, x_max, y_max = bbox
+            reserve = int(array.shape[0] / array.shape[1] * (x_max / x_min))
+            reserve2 = int(array.shape[0] / array.shape[1] * (y_max / x_min))
+            cropped_image = img.crop((int(x_min) - reserve,
+                                      int(y_min) - reserve,
+                                      int(x_max) + reserve + reserve2,
+                                      int(y_max) + reserve + reserve2))
+            cropped_image = np.array(cropped_image)
     except:
+        print(1)
+        if array.ndim == 3 and array.shape[2] == 3:
+            array = cv2.cvtColor(array, cv2.COLOR_BGR2GRAY)
         # Присвоение изображению порогового значения в виде двоичного изображения
         img_bin = cv2.adaptiveThreshold(array, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY_INV, 21, 10)
 
@@ -148,14 +149,7 @@ def img2table(img_path):
     grabbed = imutils.grab_contours(contours)
     sortedContours = sorted(grabbed, key=cv2.contourArea, reverse=True)[:5]
 
-    screenCnt = None
-    for contour in sortedContours:
-        peri = cv2.arcLength(contour, True)
-        approximation = cv2.approxPolyDP(contour, 0.02 * peri, True)
-
-        if len(approximation) == 4:
-            screenCnt = approximation
-            break
+    screenCnt = max(sortedContours, key=cv2.contourArea)
 
     # Присвоение изображению порогового значения в виде двоичного изображения
     img_bin = cv2.adaptiveThreshold(img, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY_INV, 21, 10)
