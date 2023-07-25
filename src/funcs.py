@@ -56,7 +56,6 @@ def crop_img(file):
                                       int(y_max) + reserve + reserve2))
             cropped_image = np.array(cropped_image)
     except:
-        print(1)
         if array.ndim == 3 and array.shape[2] == 3:
             array = cv2.cvtColor(array, cv2.COLOR_BGR2GRAY)
         # Присвоение изображению порогового значения в виде двоичного изображения
@@ -143,18 +142,21 @@ def img2table(img_path):
     if img.ndim == 3 and img.shape[2] == 3:
         img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
+    # Поиск контуров
     edged = cv2.Canny(img, 75, 200)
 
     contours = cv2.findContours(edged.copy(), cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
     grabbed = imutils.grab_contours(contours)
     sortedContours = sorted(grabbed, key=cv2.contourArea, reverse=True)[:5]
 
+    # Выделение максимального
     screenCnt = max(sortedContours, key=cv2.contourArea)
 
     # Присвоение изображению порогового значения в виде двоичного изображения
     img_bin = cv2.adaptiveThreshold(img, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY_INV, 21, 10)
 
     try:
+        # Исправление перспективы изображения
         ratio = cv2_image.shape[0] / 500.0
         pts = screenCnt.reshape(4, 2) * ratio
 
@@ -241,7 +243,9 @@ def img2table(img_path):
                     text = results[0][1]
 
             # Добавление текста в список
-            texts.append(text.replace('|', '').replace('_', '').replace(',', '.').replace('—', ''))
+            texts.append(text.replace('|', '').replace('_', '').replace(',', '.').replace('—', '').replace('\n', ''))
+
+    # Создание итогового датафрейма
     dates = []
     date_ids = []
     for i in range(len(texts)):
@@ -259,15 +263,22 @@ def img2table(img_path):
 
     if date_ids:
         for i in date_ids:
-            if texts[i + 1] != '':
-                kinds.append(re.sub(r'[^а-яА-Яa-zA-Z]', '', texts[i + 1][:4]))
-            else:
-                kinds.append('')
-
-            if len(texts[i + 1]) > 4:
-                types.append(re.sub(r'[^а-яА-Яa-zA-Z]', '', texts[i + 1][4:]))
+            if 'бв' in texts[i + 1] or 'б' in texts[i + 1] or 'в' in texts[i + 1]:
+                types.append('Безвозмездно')
+            elif 'платно' in texts[i + 1]:
+                types.append('Платно')
+                texts[i + 1].replace('платно', '')
             else:
                 types.append('')
+
+            if 'кр' in texts[i + 1] or 'к' in texts[i + 1] or 'р' in texts[i + 1]:
+                kinds.append('Цельная кровь')
+            elif 'пл' in texts[i + 1] or 'п' in texts[i + 1] or 'л' in texts[i + 1]:
+                kinds.append('Плазма')
+            elif 'ц' in texts[i + 1] or 'т' in texts[i + 1]:
+                kinds.append('Тромбоциты')
+            else:
+                kinds.append('')
 
             if texts[i + 2] != '':
                 quantities.append(re.sub(r"\D", "", texts[i + 2]))
@@ -278,9 +289,6 @@ def img2table(img_path):
         df['Класс крови'] = kinds
         df['Тип донации'] = types
         df['Количество'] = quantities
-
-        df['Класс крови'].replace({'крд': 'Цельная кровь', 'плд': 'Плазма', 'цд': 'Тромбоциты'}, inplace=True)
-        df['Тип донации'].replace({'бв': 'Безвозмездно', 'плат': 'Платно'}, inplace=True)
 
     return df
 
