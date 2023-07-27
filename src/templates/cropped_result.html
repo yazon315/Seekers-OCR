@@ -1,0 +1,54 @@
+{% extends 'result.html' %}
+
+{% block content1 %}
+    .buttonEnhance {
+      padding: 8px 16px;
+      text-align: center;
+      text-decoration: none;
+      display: inline-block;
+      font-size: 16px;
+      margin: 4px 2px;
+      cursor: pointer;
+    }
+
+    .loader {
+      border: 10px solid #f3f3f3; /* Light grey */
+      border-top: 10px solid #3498db; /* Blue */
+      border-radius: 50%;
+      width: 50px;
+      height: 50px;
+      animation: spin 2s linear infinite;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+{% endblock content1 %}
+
+{% block content2 %}
+    <button id="buttonEnhance" class="buttonEnhance" type="button">Улучшить распознание (работает медленнее)</button>
+{% endblock content2 %}
+
+{% block content3 %}
+    document.getElementById('buttonEnhance').onclick = function() {
+        // Спрятать кнопку
+        document.getElementById('buttonEnhance').style.display = 'none';
+
+        // Показать индикатор загрузки
+        document.getElementById('button-container').innerHTML = '<div class="loader"></div>';
+
+        fetch('/enhanced_result', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.text())
+        .then(html => {
+            document.getElementById('resultContainer').innerHTML = html;
+        })
+        .catch(error => console.error('Error:', error));
+        window.location.href = "/enhanced_result/cropped_out.png";
+    }
+{% endblock content3 %}
