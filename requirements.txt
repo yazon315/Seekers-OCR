@@ -1,0 +1,20 @@
+pandas==2.0.3
+numpy==1.24.4
+
+pytesseract==0.3.10
+easyocr==1.7.0
+
+Pillow==10.0.0
+opencv-python==4.8.0.74
+# opencv-python-headless==4.8.0.74
+imutils~=0.5.4
+ultralyticsplus~=0.0.28
+
+dateparser~=1.1.8
+
+fastapi==0.100.0
+uvicorn~=0.22.0
+
+
+# realesrgan==0.3.0
+# basicsr==1.4.2 # для RealESRGAN
